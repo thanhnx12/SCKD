@@ -216,24 +216,25 @@ def train_mem_model(config, encoder, dropout_layer, classifier, training_data, e
                 neg_prototypes = [prototype[rel_id] for rel_id in prototype.keys() if rel_id != origin_labels[i].item()]
                 neg_prototypes = torch.stack(neg_prototypes).to(config.device)
                 #---- generate negative samples from t-distribution
-                neg_distributions = [t_distributions[rel_id] for rel_id in t_distributions.keys() if rel_id != origin_labels[i].item()]
-                neg_samples = []
-                for t_distribution in neg_distributions:
-                    t_distribution.sample((3,))
-                    neg_samples.append(t_distribution.sample((3,))) # sample 3 negative samples from each t-distribution
+                # neg_distributions = [t_distributions[rel_id] for rel_id in t_distributions.keys() if rel_id != origin_labels[i].item()]
+                # neg_samples = []
+                # for t_distribution in neg_distributions:
+                #     t_distribution.sample((3,))
+                #     neg_samples.append(t_distribution.sample((3,))) # sample 3 negative samples from each t-distribution
 
-                neg_samples = torch.cat(neg_samples).to(config.device)
-                neg_prototypes.requires_grad_ = False
-                neg_prototypes = neg_prototypes.squeeze()
-                neg_samples = torch.cat([neg_samples,neg_prototypes])
-                assert len(neg_samples.shape) == 2 , f"shape of negative samples is {neg_samples.shape} (expected n_sample x n_feature)"
-                print("shape of negative samples is ",neg_samples.shape)
+                # neg_samples = torch.cat(neg_samples).to(config.device)
+                # neg_prototypes.requires_grad_ = False
+                # neg_prototypes = neg_prototypes.squeeze()
+                # neg_samples = torch.cat([neg_samples,neg_prototypes])
+                # assert len(neg_samples.shape) == 2 , f"shape of negative samples is {neg_samples.shape} (expected n_sample x n_feature)"
                 #---- generate negative samples from t-distribution
                 
                 #--- prepare batch of negative samples 
-                f_pos = encoder.infoNCE_f(mask_output[i],outputs[i] , temperature = config.infonce_temperature)
-                f_neg = encoder.infoNCE_f(mask_output[i],neg_samples , temperature = config.infonce_temperature)
-                f_concat = torch.cat([f_pos.unsqueeze(0),f_neg],dim=0)
+                neg_prototypes.requires_grad_ = False
+                neg_prototypes = neg_prototypes.squeeze()
+                f_pos = encoder.infoNCE_f(mask_output[i],outputs[i])
+                f_neg = encoder.infoNCE_f(mask_output[i],neg_prototypes )
+                f_concat = torch.cat([f_pos,f_neg.squeeze()],dim=0)
                 infoNCE_loss += -torch.log(softmax(f_concat/abs(f_concat).max())[0])
                 #--- prepare batch of negative samples  
             infoNCE_loss /= output.shape[0]           
@@ -507,10 +508,13 @@ if __name__ == '__main__':
 
     wandb.init(
         project = "DATN",
+        name= f"SCKD_{args.task}_{args.shot}_{config.infonce_lossfactor}_{config.mlm_lossfactor}",
         config = {
             "name" : "SCKD",
             "task" : args.task,
             "shot" : args.shot,
+            "infonce_lossfactor" : config.infonce_lossfactor,
+            "mlm_lossfactor" : config.mlm_lossfactor,
         }
     )
     config.task = args.task
