@@ -171,6 +171,7 @@ def train_mem_model(config, encoder, dropout_layer, classifier, training_data, e
     ])
     triplet_loss = nn.TripletMarginLoss(margin=1.0, p=2)
     distill_criterion = nn.CosineEmbeddingLoss()
+    softmax = nn.Softmax(dim=0)
     T = config.kl_temp
     for epoch_i in range(epochs):
         losses = []
@@ -230,18 +231,10 @@ def train_mem_model(config, encoder, dropout_layer, classifier, training_data, e
                 #---- generate negative samples from t-distribution
                 
                 #--- prepare batch of negative samples 
-                neg_batch_size = 16
                 f_pos = encoder.infoNCE_f(mask_output[i],outputs[i] , temperature = config.infonce_temperature)
-                # for batch in range(0,neg_samples.shape[0],neg_batch_size):
-
-                #     if batch + neg_batch_size > neg_samples.shape[0]:
-                #         neg = neg_samples[batch:]
-                #     else:
-                #         neg = neg_samples[batch:batch+neg_batch_size]
-                #     f_neg = encoder.infoNCE_f(mask_output[i],neg , temperature = config.infonce_temperature)
-                #     infoNCE_loss += -torch.log(f_pos / (f_pos + f_neg)).mean() / (neg_samples.shape[0]//neg_batch_size + 1)
                 f_neg = encoder.infoNCE_f(mask_output[i],neg_samples , temperature = config.infonce_temperature)
-                infoNCE_loss += -torch.log(f_pos / (f_pos + f_neg))
+                f_concat = torch.cat([f_pos.unsqueeze(0),f_neg],dim=0)
+                infoNCE_loss += -torch.log(softmax(f_concat/abs(f_concat).max())[0])
                 #--- prepare batch of negative samples  
             infoNCE_loss /= output.shape[0]           
             # compute MLM loss
