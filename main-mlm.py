@@ -156,7 +156,7 @@ def train_first(config, encoder, dropout_layer, classifier, training_data, epoch
 
 
 def train_mem_model(config, encoder, dropout_layer, classifier, training_data, epochs, map_relid2tempid, new_relation_data,
-                prev_encoder, prev_dropout_layer, prev_classifier, prev_relation_index , prototype = None , t_distributions : List[torch.distributions.StudentT] = None):
+                prev_encoder, prev_dropout_layer, prev_classifier, prev_relation_index , prototype = None ):
     data_loader = get_data_loader(config, training_data, shuffle=True)
 
     encoder.train()
@@ -384,12 +384,12 @@ def get_proto(config, encoder, dropout_layer, relation_dataset):
             feature = dropout_layer(output)[1]
         features.append(feature)
     features = torch.cat(features, dim=0)
-    t_distribution = utils.get_T_distribution(features) # get the t-distribution of the features for generate data
+    # t_distribution = utils.get_T_distribution(features) # get the t-distribution of the features for generate data
 
     proto = torch.mean(features, dim=0, keepdim=True).cpu()
     standard = torch.sqrt(torch.var(features, dim=0)).cpu()
     
-    return proto, standard , t_distribution
+    return proto, standard 
 
  
 
@@ -621,16 +621,16 @@ if __name__ == '__main__':
                 config.device)
 
             temp_protos = {}
-            temp_distributions = {}
+            # temp_distributions = {}
             for relation in current_relations:
-                proto, _ ,t_distributon = get_proto(config, encoder, dropout_layer, training_data[relation])
+                proto, _  = get_proto(config, encoder, dropout_layer, training_data[relation])
                 temp_protos[rel2id[relation]] = proto
-                temp_distributions[rel2id[relation]] = t_distributon
+                # temp_distributions[rel2id[relation]] = t_distributon
 
             for relation in prev_relations:
-                proto, _ , t_distributon = get_proto(config, encoder, dropout_layer, memorized_samples[relation])
+                proto, _  = get_proto(config, encoder, dropout_layer, memorized_samples[relation])
                 temp_protos[rel2id[relation]] = proto
-                temp_distributions[rel2id[relation]] = t_distributon
+                # temp_distributions[rel2id[relation]] = t_distributon
 
 
             test_data_1 = []
@@ -646,18 +646,18 @@ if __name__ == '__main__':
 
 
             temp_protos = {} # key : relation id, value : prototype
-            temp_distributions = {} # key : relation id, value : t-distribution
+            # temp_distributions = {} # key : relation id, value : t-distribution
             for relation in current_relations:
-                proto, standard , t_distributon = get_proto(config,encoder,dropout_layer,training_data[relation])
+                proto, standard  = get_proto(config,encoder,dropout_layer,training_data[relation])
                 temp_protos[rel2id[relation]] = proto
                 relation_standard[rel2id[relation]] = standard
-                temp_distributions[rel2id[relation]] = t_distributon
+                # temp_distributions[rel2id[relation]] = t_distributon
 
 
             for relation in prev_relations:
-                proto, _ , t_distributon = get_proto(config,encoder,dropout_layer,memorized_samples[relation])
+                proto, _ = get_proto(config,encoder,dropout_layer,memorized_samples[relation])
                 temp_protos[rel2id[relation]] = proto
-                temp_distributions[rel2id[relation]] = t_distributon
+                # temp_distributions[rel2id[relation]] = t_distributon
 
             new_relation_data = generate_relation_data(temp_protos, relation_standard)
 
@@ -689,11 +689,11 @@ if __name__ == '__main__':
             print(len(train_data_for_memory))
 
             temp_protos = {}
-            temp_distributions = {}
+            # temp_distributions = {}
             for relation in seen_relations:
-                proto, _ , t_distributon = get_proto(config, encoder, dropout_layer, memorized_samples[relation])
+                proto, _  = get_proto(config, encoder, dropout_layer, memorized_samples[relation])
                 temp_protos[rel2id[relation]] = proto
-                temp_distributions[rel2id[relation]] = t_distributon
+                # temp_distributions[rel2id[relation]] = t_distributon
 
             train_mem_model(config, encoder, dropout_layer, classifier, train_data_for_memory, config.step3_epochs, map_relid2tempid, new_relation_data,
                         prev_encoder, prev_dropout_layer, prev_classifier, prev_relation_index , prototype=temp_protos , t_distributions=temp_distributions)
