@@ -569,6 +569,9 @@ if __name__ == '__main__':
         test_total = []
         random.seed(config.seed+rou*100)
         sampler = data_sampler(config=config, seed=config.seed+rou*100)
+
+        config.extended_vocab_size = len(sampler.tokenizer)
+        
         id2rel = sampler.id2rel
         rel2id = sampler.rel2id
         id2sentence = sampler.get_id2sent()

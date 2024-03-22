@@ -100,18 +100,12 @@ class Bert_EncoderMLM(base_model):
         config.hidden_size = self.bert_config.hidden_size
         config.output_size = config.encoder_output_size
         if self.pattern == 'entity_marker':
-            self.encoder.resize_token_embeddings(config.vocab_size + config.marker_size)
+            self.encoder.resize_token_embeddings(config.extended_vocab_size)
             self.linear_transform = nn.Linear(self.bert_config.hidden_size * 2, self.output_size, bias=True)
             raise Exception('Not implemented yet')
         elif self.pattern == 'entity_marker_mask':
-            self.encoder.resize_token_embeddings(config.vocab_size + config.marker_size + config.num_of_relation)
+            self.encoder.resize_token_embeddings(config.extended_vocab_size)
             self.linear_transform = nn.Linear(self.bert_config.hidden_size * 2, self.output_size, bias=True)
-
-            self.info_nce_fc_0 = nn.Sequential(
-                nn.Linear(config.encoder_output_size, config.encoder_output_size),
-                nn.ReLU(),
-                nn.Dropout()
-            )
             self.info_nce_fc = nn.Linear(config.vocab_size + config.marker_size + config.num_of_relation, config.encoder_output_size , bias= False)
             
         else:
