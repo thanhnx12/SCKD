@@ -221,8 +221,14 @@ def train_mem_model(config, encoder, dropout_layer, classifier, training_data, e
                 neg_prototypes = neg_prototypes.squeeze()
                 f_pos = encoder.infoNCE_f(mask_output[i],outputs[i])
                 f_neg = encoder.infoNCE_f(mask_output[i],neg_prototypes )
+
+                
+
                 f_concat = torch.cat([f_pos,f_neg.squeeze()],dim=0)
-                infoNCE_loss += -torch.log(softmax(f_concat - f_concat.max())[0])
+                # quick fix for large number
+                f_concat = torch.log(torch.max(f_concat, 1e-9))
+
+                infoNCE_loss += -torch.log(softmax(f_concat)[0])
                 #--- prepare batch of negative samples  
             infoNCE_loss /= output.shape[0]           
             # compute MLM loss
