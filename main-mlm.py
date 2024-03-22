@@ -215,19 +215,6 @@ def train_mem_model(config, encoder, dropout_layer, classifier, training_data, e
             for i in range(output.shape[0]):
                 neg_prototypes = [prototype[rel_id] for rel_id in prototype.keys() if rel_id != origin_labels[i].item()]
                 neg_prototypes = torch.stack(neg_prototypes).to(config.device)
-                #---- generate negative samples from t-distribution
-                # neg_distributions = [t_distributions[rel_id] for rel_id in t_distributions.keys() if rel_id != origin_labels[i].item()]
-                # neg_samples = []
-                # for t_distribution in neg_distributions:
-                #     t_distribution.sample((3,))
-                #     neg_samples.append(t_distribution.sample((3,))) # sample 3 negative samples from each t-distribution
-
-                # neg_samples = torch.cat(neg_samples).to(config.device)
-                # neg_prototypes.requires_grad_ = False
-                # neg_prototypes = neg_prototypes.squeeze()
-                # neg_samples = torch.cat([neg_samples,neg_prototypes])
-                # assert len(neg_samples.shape) == 2 , f"shape of negative samples is {neg_samples.shape} (expected n_sample x n_feature)"
-                #---- generate negative samples from t-distribution
                 
                 #--- prepare batch of negative samples 
                 neg_prototypes.requires_grad_ = False
@@ -235,7 +222,7 @@ def train_mem_model(config, encoder, dropout_layer, classifier, training_data, e
                 f_pos = encoder.infoNCE_f(mask_output[i],outputs[i])
                 f_neg = encoder.infoNCE_f(mask_output[i],neg_prototypes )
                 f_concat = torch.cat([f_pos,f_neg.squeeze()],dim=0)
-                infoNCE_loss += -torch.log(softmax(f_concat/abs(f_concat).max())[0])
+                infoNCE_loss += -torch.log(softmax(f_concat - f_concat.max())[0])
                 #--- prepare batch of negative samples  
             infoNCE_loss /= output.shape[0]           
             # compute MLM loss
