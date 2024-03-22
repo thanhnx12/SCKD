@@ -226,7 +226,7 @@ def train_mem_model(config, encoder, dropout_layer, classifier, training_data, e
 
                 f_concat = torch.cat([f_pos,f_neg.squeeze()],dim=0)
                 # quick fix for large number
-                f_concat = torch.log(torch.max(f_concat, torch.tensor(1e-9).to(config['device'] )))
+                f_concat = torch.log(torch.max(f_concat, torch.tensor(1e-9).to(config.device)))
 
                 infoNCE_loss += -torch.log(softmax(f_concat)[0])
                 #--- prepare batch of negative samples  
