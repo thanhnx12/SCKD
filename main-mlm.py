@@ -571,7 +571,7 @@ if __name__ == '__main__':
         sampler = data_sampler(config=config, seed=config.seed+rou*100)
 
         config.extended_vocab_size = len(sampler.tokenizer)
-        
+
         id2rel = sampler.id2rel
         rel2id = sampler.rel2id
         id2sentence = sampler.get_id2sent()
@@ -660,12 +660,12 @@ if __name__ == '__main__':
             for relation in current_relations:
                 new_relation_data[rel2id[relation]].extend(generate_current_relation_data(config, encoder,dropout_layer,training_data[relation]))
 
-            expanded_train_data_for_initial, expanded_prev_samples = data_augmentation(config, encoder,
-                                                                                       train_data_for_initial,
-                                                                                       prev_samples)
+            # expanded_train_data_for_initial, expanded_prev_samples = data_augmentation(config, encoder,
+            #                                                                            train_data_for_initial,
+            #                                                                            prev_samples)
             torch.cuda.empty_cache()
             print(len(train_data_for_initial))
-            print(len(expanded_train_data_for_initial))
+            # print(len(expanded_train_data_for_initial))
 
 
             train_mem_model(config, encoder, dropout_layer, classifier, train_data_for_initial, config.step2_epochs, map_relid2tempid, new_relation_data,
