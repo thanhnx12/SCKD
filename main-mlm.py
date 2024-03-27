@@ -354,8 +354,8 @@ def save_representation_for_representation(config,  encoder , dropout_layer , cl
 
         for idx,label in enumerate(labels):
             if label not in mlm_representations:
-                mlm_representations[label] = []
-            mlm_representations[label].append(mask_output[idx].cpu().data.numpy())
+                mlm_representations[label.cpu().data.numpy()] = []
+            mlm_representations[label.cpu().data.numpy()].append(mask_output[idx].cpu().data.numpy())
     with open(current_round + '_' + 'mlm_representations.pkl','wb') as f:
         pickle.dump(mlm_representations,f)
 
