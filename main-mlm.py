@@ -353,7 +353,7 @@ def save_representation_for_representation(config,  encoder , dropout_layer , cl
         reps , mask_output = encoder(tokens)
 
         for idx,label in enumerate(labels):
-            if label not in mlm_representations:
+            if str(label.cpu().data.numpy()) not in mlm_representations:
                 mlm_representations[str(label.cpu().data.numpy())] = []
             mlm_representations[str(label.cpu().data.numpy())].append(mask_output[idx].cpu().data.numpy())
     with open(current_round + '_' + 'mlm_representations.pkl','wb') as f:
