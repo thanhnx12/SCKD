@@ -215,11 +215,10 @@ def train_mem_model(config, encoder, dropout_layer, classifier, training_data, e
             infoNCE_loss = 0
             for i in range(output.shape[0]):
                 neg_prototypes = [prototype[rel_id] for rel_id in prototype.keys() if rel_id != origin_labels[i].item()]
-                neg_prototypes = torch.stack(neg_prototypes).to(config.device)
-                
                 neg_samples = [new_relation_data[rel_id] for rel_id in new_relation_data.keys() if rel_id != origin_labels[i].item()]
                 neg_prototypes.extend(neg_samples)
-                
+                neg_prototypes = torch.stack(neg_prototypes).to(config.device)
+
                 #--- prepare batch of negative samples 
                 neg_prototypes.requires_grad_ = False
                 neg_prototypes = neg_prototypes.squeeze()
