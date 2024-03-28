@@ -694,8 +694,8 @@ if __name__ == '__main__':
             # print(len(expanded_train_data_for_initial))
 
 
-            train_mem_model(config, encoder, dropout_layer, classifier, train_data_for_initial, config.step2_epochs, map_relid2tempid, new_relation_data,
-                        prev_encoder, prev_dropout_layer, prev_classifier, prev_relation_index , prototype=temp_protos )
+            # train_mem_model(config, encoder, dropout_layer, classifier, train_data_for_initial, config.step2_epochs, map_relid2tempid, new_relation_data,
+                        # prev_encoder, prev_dropout_layer, prev_classifier, prev_relation_index , prototype=temp_protos )
             print(f"first finished")
 
             for relation in current_relations:
@@ -717,8 +717,8 @@ if __name__ == '__main__':
                 temp_protos[rel2id[relation]] = proto
                 # temp_distributions[rel2id[relation]] = t_distributon
 
-            train_mem_model(config, encoder, dropout_layer, classifier, train_data_for_memory, config.step3_epochs, map_relid2tempid, new_relation_data,
-                        prev_encoder, prev_dropout_layer, prev_classifier, prev_relation_index , prototype=temp_protos )
+            # train_mem_model(config, encoder, dropout_layer, classifier, train_data_for_memory, config.step3_epochs, map_relid2tempid, new_relation_data,
+                        # prev_encoder, prev_dropout_layer, prev_classifier, prev_relation_index , prototype=temp_protos )
             print(f"memory finished")
             test_data_1 = []
             for relation in current_relations:
