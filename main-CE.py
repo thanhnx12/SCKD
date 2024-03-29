@@ -122,7 +122,7 @@ def train_simple_model_with_MI(config, encoder, dropout_layer, classifier, train
                 #--- prepare batch of negative samples  
             infoNCE_loss /= reps.shape[0]    
             loss += infoNCE_loss
-            
+
             losses.append(loss.item())
             loss.backward()
             optimizer.step()
@@ -727,7 +727,7 @@ if __name__ == '__main__':
                 forward_acc = evaluate_strict_model(config, prev_encoder, prev_dropout_layer, classifier, test_data_1, seen_relations, map_relid2tempid)
                 forward_accs.append(forward_acc)
 
-            train_simple_model(config, encoder, dropout_layer, classifier, train_data_for_initial, config.step1_epochs, map_relid2tempid)
+            train_simple_model_with_MI(config, encoder, dropout_layer, classifier, train_data_for_initial, config.step1_epochs, map_relid2tempid)
             print(f"simple finished")
 
 
