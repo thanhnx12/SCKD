@@ -62,7 +62,71 @@ def train_simple_model(config, encoder, dropout_layer, classifier, training_data
             loss.backward()
             optimizer.step()
         print(f"loss is {np.array(losses).mean()}")
+def train_simple_model_with_MI(config, encoder, dropout_layer, classifier, training_data, epochs, map_relid2tempid,new_relation_data , prototype):
+    data_loader = get_data_loader(config, training_data, shuffle=True)
 
+    encoder.train()
+    dropout_layer.train()
+    classifier.train()
+
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam([
+        {'params': encoder.parameters(), 'lr': 0.00001},
+        {'params': dropout_layer.parameters(), 'lr': 0.00001},
+        {'params': classifier.parameters(), 'lr': 0.001}
+    ])
+    softmax = nn.Softmax(dim=0)
+    for epoch_i in range(epochs):
+        losses = []
+        for step, batch_data in enumerate(data_loader):
+            optimizer.zero_grad()
+            labels, _, tokens = batch_data
+            labels = labels.to(config.device)
+            labels = [map_relid2tempid[x.item()] for x in labels]
+            labels = torch.tensor(labels).to(config.device)
+            
+            tokens = torch.stack([x.to(config.device) for x in tokens],dim=0)
+            reps, mask_output = encoder(tokens)
+            
+            reps, _ = dropout_layer(reps)
+            logits = classifier(reps)
+            loss = criterion(logits, labels)
+            #compute infoNCE loss
+            infoNCE_loss = 0
+            for i in range(reps.shape[0]):
+                neg_prototypes = [prototype[rel_id] for rel_id in prototype.keys() if rel_id != origin_labels[i].item()]
+                neg_samples_grouped = [new_relation_data[rel_id] for rel_id in new_relation_data.keys() if rel_id != origin_labels[i].item()]
+                neg_samples = []
+                for neg in neg_samples_grouped:
+                    neg_samples.extend(neg)
+                random.shuffle(neg_samples)
+
+                contrastive_batch = 256
+                neg_samples = neg_samples[:contrastive_batch - len(neg_prototypes)]
+                neg_prototypes.extend(neg_samples)
+                neg_prototypes = torch.stack(neg_prototypes).to(config.device)
+
+                #--- prepare batch of negative samples 
+                neg_prototypes.requires_grad_ = False
+                neg_prototypes = neg_prototypes.squeeze()
+                f_pos = encoder.infoNCE_f(mask_output[i],reps[i])
+                f_neg = encoder.infoNCE_f(mask_output[i],neg_prototypes )
+
+                
+
+                f_concat = torch.cat([f_pos,f_neg.squeeze()],dim=0)
+                # quick fix for large number
+                f_concat = torch.log(torch.max(f_concat, torch.tensor(1e-9).to(config.device)))
+
+                infoNCE_loss += -torch.log(softmax(f_concat)[0])
+                #--- prepare batch of negative samples  
+            infoNCE_loss /= reps.shape[0]    
+            loss += infoNCE_loss
+            
+            losses.append(loss.item())
+            loss.backward()
+            optimizer.step()
+        print(f"loss is {np.array(losses).mean()}")
 
 def compute_jsd_loss(m_input):
     # m_input: the result of m times dropout after the classifier.
