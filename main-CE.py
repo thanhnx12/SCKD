@@ -94,8 +94,8 @@ def train_simple_model_with_MI(config, encoder, dropout_layer, classifier, train
             #compute infoNCE loss
             infoNCE_loss = 0
             for i in range(reps.shape[0]):
-                neg_prototypes = [prototype[rel_id] for rel_id in prototype.keys() if rel_id != origin_labels[i].item()]
-                neg_samples_grouped = [new_relation_data[rel_id] for rel_id in new_relation_data.keys() if rel_id != origin_labels[i].item()]
+                neg_prototypes = [prototype[rel_id] for rel_id in prototype.keys() if rel_id != labels[i].item()]
+                neg_samples_grouped = [new_relation_data[rel_id] for rel_id in new_relation_data.keys() if rel_id != labels[i].item()]
                 neg_samples = []
                 for neg in neg_samples_grouped:
                     neg_samples.extend(neg)
@@ -121,8 +121,8 @@ def train_simple_model_with_MI(config, encoder, dropout_layer, classifier, train
                 infoNCE_loss += -torch.log(softmax(f_concat)[0])
                 #--- prepare batch of negative samples  
             infoNCE_loss /= reps.shape[0]    
-            loss += infoNCE_loss
-
+            loss += config.infonce_lossfactor*infoNCE_loss
+            
             losses.append(loss.item())
             loss.backward()
             optimizer.step()
@@ -666,8 +666,15 @@ if __name__ == '__main__':
         rel2id = sampler.rel2id
         id2sentence = sampler.get_id2sent()
         encoder = Bert_EncoderMLM(config=config).to(config.device)
+        # freeze lm head
+        for n,p in encoder.encoder.named_parameters():
+            if 'cls' in n:
+                p.requires_grad = False
+        
+
         dropout_layer = Dropout_Layer(config=config).to(config.device)
         num_class = len(sampler.id2rel)
+
         
 
         memorized_samples = {}
@@ -727,7 +734,8 @@ if __name__ == '__main__':
                 forward_acc = evaluate_strict_model(config, prev_encoder, prev_dropout_layer, classifier, test_data_1, seen_relations, map_relid2tempid)
                 forward_accs.append(forward_acc)
 
-            train_simple_model_with_MI(config, encoder, dropout_layer, classifier, train_data_for_initial, config.step1_epochs, map_relid2tempid)
+            train_simple_model(config, encoder, dropout_layer, classifier, train_data_for_initial, config.step1_epochs, map_relid2tempid)
+                
             print(f"simple finished")
 
 
@@ -749,6 +757,8 @@ if __name__ == '__main__':
 
             for relation in current_relations:
                 new_relation_data[rel2id[relation]].extend(generate_current_relation_data(config, encoder,dropout_layer,training_data[relation]))
+
+            train_simple_model_with_MI(config, encoder, dropout_layer, classifier, train_data_for_initial, config.step1_epochs, map_relid2tempid,new_relation_data,temp_protos)
 
             # expanded_train_data_for_initial, expanded_prev_samples = data_augmentation(config, encoder,
             #                                                                            train_data_for_initial,
