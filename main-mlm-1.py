@@ -213,7 +213,7 @@ def train_mem_model(config, encoder, dropout_layer, classifier, training_data, e
             tri_loss = triplet_loss(anchors, positives, negatives)
             #compute infoNCE loss
             infoNCE_loss = 0
-            for i in range(output.shape[0]):
+            for i in range(outputs.shape[0]):
                 neg_prototypes = [prototype[rel_id] for rel_id in prototype.keys() if rel_id != origin_labels[i].item()]
                 neg_samples_grouped = [new_relation_data[rel_id] for rel_id in new_relation_data.keys() if rel_id != origin_labels[i].item()]
                 neg_samples = []
@@ -240,7 +240,7 @@ def train_mem_model(config, encoder, dropout_layer, classifier, training_data, e
 
                 infoNCE_loss += -torch.log(softmax(f_concat)[0])
                 #--- prepare batch of negative samples  
-            infoNCE_loss /= output.shape[0]           
+            infoNCE_loss /= outputs.shape[0]           
             # compute MLM loss
             
             mlm_loss = criterion(mask_output.view(-1, mask_output.size()[-1]), mlm_labels.view(-1))
