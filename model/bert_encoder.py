@@ -5,6 +5,7 @@ import numpy as np
 from model.base_model import base_model
 from transformers import BertModel, BertConfig
 from transformers import BertForMaskedLM 
+from peft import  PrefixTuningConfig,get_peft_model
 
 class Bert_Encoder(base_model):
 
@@ -90,7 +91,7 @@ class Bert_EncoderMLM(base_model):
         self.output_size = config.encoder_output_size
 
         self.drop = nn.Dropout(config.drop_out)
-
+        
         
         # find which encoding is used
         if config.pattern in ['standard', 'entity_marker', 'entity_marker_mask']:
@@ -112,6 +113,25 @@ class Bert_EncoderMLM(base_model):
             self.linear_transform = nn.Linear(self.bert_config.hidden_size, self.output_size, bias=True)
 
         self.layer_normalization = nn.LayerNorm([self.output_size])
+
+        ## PrefixTuning
+        if config.use_prefix_tuning:
+            peft_config = PrefixTuningConfig(
+                    peft_type="PREFIX_TUNING",
+                    task_type="SEQ_2_SEQ_LM",
+                    num_virtual_tokens=config.prefix_tuning_num_virtual_tokens,
+                    token_dim=768,
+                    num_transformer_submodules=1,
+                    num_attention_heads=12,
+                    num_layers=12,
+                    encoder_hidden_size=config.encoder_output_size,
+                )
+            self.encoder = get_peft_model(self.encoder, peft_config)
+            self.encoder.print_trainable_parameters()
+            
+        ## PrefixTuning
+
+
     def infoNCE_f(self,V,C , temperature=1000.0):
         """
         V : 1 x dim_V
