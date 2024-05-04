@@ -5,7 +5,7 @@ import numpy as np
 from model.base_model import base_model
 from transformers import BertModel, BertConfig
 from transformers import BertForMaskedLM 
-from peft import  PrefixTuningConfig,get_peft_model
+from peft import  PrefixTuningConfig,get_peft_model,PrefixEncoder
 
 class Bert_Encoder(base_model):
 
@@ -77,12 +77,13 @@ class Bert_Encoder(base_model):
         return output
     
     
-    
+
+
 class Bert_EncoderMLM(base_model):
 
     def __init__(self, config):
         super(Bert_EncoderMLM, self).__init__()
-
+        self.config = config
         # load model
         self.encoder = BertForMaskedLM.from_pretrained(config.bert_path).cuda()
         self.bert_config = BertConfig.from_pretrained(config.bert_path)
@@ -116,9 +117,10 @@ class Bert_EncoderMLM(base_model):
 
         ## PrefixTuning
         if config.use_prefix_tuning:
+            print('USE PREFIX TUNING')
             peft_config = PrefixTuningConfig(
                     peft_type="PREFIX_TUNING",
-                    task_type="SEQ_2_SEQ_LM",
+                    task_type="FEATURE_EXTRACTION",
                     num_virtual_tokens=config.prefix_tuning_num_virtual_tokens,
                     token_dim=768,
                     num_transformer_submodules=1,
@@ -126,8 +128,13 @@ class Bert_EncoderMLM(base_model):
                     num_layers=12,
                     encoder_hidden_size=config.encoder_output_size,
                 )
-            self.encoder = get_peft_model(self.encoder, peft_config)
-            self.encoder.print_trainable_parameters()
+            
+            self.prefix_encoder = PrefixEncoder(peft_config)
+
+            # freeze bert
+            for param in self.encoder.parameters():
+                param.requires_grad = False    
+        
             
         ## PrefixTuning
 
@@ -151,6 +158,34 @@ class Bert_EncoderMLM(base_model):
     def get_output_size(self):
         return self.output_size
 
+    def prefix_encode(self, inputs):
+        """
+        encoder by prefix tuning 
+        :param inputs: of dimension [B, N]
+        :return: a result of size [B, H*2] or [B, H], according to different 
+                strategy
+        """
+        prefix_hidden_states = self.prefix_encoder(torch.tensor([0]*inputs.shape[0]))
+        batch_size = inputs.shape[0]
+
+        inputs_embeds = self.encoder.bert.embeddings(inputs)
+        hidden_size = inputs_embeds.shape[-1]
+        prefix_hidden_states = prefix_hidden_states.squeeze().reshape(batch_size , -1, 2, hidden_size)
+
+        hidden_states = inputs_embeds
+        for idx, layer in enumerate(self.encoder.bert.encoder.layer):
+            hidden_states = torch.cat([prefix_hidden_states[:, idx , : , :].to(self.config.device) , hidden_states], dim = 1)
+            hidden_states = layer(hidden_states)[0][:, 2:, : ]
+        
+        logits = self.encoder.cls(hidden_states)
+        return {
+            'hidden_states' : (hidden_states),
+            'logits' : logits
+        }
+
+
+        
+
     def forward(self, inputs):
         '''
         :param inputs: of dimension [B, N]
@@ -160,7 +195,8 @@ class Bert_EncoderMLM(base_model):
         if self.pattern == 'standard':
             # in the standard mode, the representation is generated according to
             #  the representation of[CLS] mark.
-            outputs = self.encoder(inputs,output_hidden_states=True)
+            # outputs = self.encoder(inputs,output_hidden_states=True)
+            outputs = self.prefix_encode(inputs)
             output = outputs.hidden_states[-1][0] # last hidden state of the [CLS] token
             lm_head_output = outputs.logits
             
@@ -177,7 +213,8 @@ class Bert_EncoderMLM(base_model):
                 e11.append(np.argwhere(tokens == 30522)[0][0])
 
             # input the sample to BERT
-            outputs = self.encoder(inputs,output_hidden_states=True) 
+            # outputs = self.encoder(inputs,output_hidden_states=True) 
+            outputs = self.prefix_encode(inputs)
             last_hidden_states = outputs.hidden_states[-1] # [B,N,H]
             lm_head_output = outputs.logits
             output = []
@@ -210,7 +247,8 @@ class Bert_EncoderMLM(base_model):
                     print("e11 not found" )
 
             # input the sample to BERT
-            outputs = self.encoder(inputs,output_hidden_states=True) 
+            # outputs = self.encoder(inputs,output_hidden_states=True) 
+            outputs = self.prefix_encode(inputs)
             last_hidden_states = outputs.hidden_states[-1] # [B,N,H]
             lm_head_output = outputs.logits
             output = []
