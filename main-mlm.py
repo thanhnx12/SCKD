@@ -405,7 +405,6 @@ def get_proto(config, encoder, dropout_layer, relation_dataset):
             feature = dropout_layer(output)[1]
         features.append(feature)
     features = torch.cat(features, dim=0)
-    # t_distribution = utils.get_T_distribution(features) # get the t-distribution of the features for generate data
 
     proto = torch.mean(features, dim=0, keepdim=True).cpu()
     standard = torch.sqrt(torch.var(features, dim=0)).cpu()

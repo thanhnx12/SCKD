@@ -128,8 +128,12 @@ class Bert_EncoderMLM(base_model):
                     num_layers=12,
                     encoder_hidden_size=config.encoder_output_size,
                 )
+                
             
             self.prefix_encoder = PrefixEncoder(peft_config)
+
+            #set n_prompts
+            self.prefix_encoder.transform[2] = nn.Linear(768, int(config.prefix_tuning_num_prompts*768*12))
 
             # freeze bert
             for param in self.encoder.parameters():
@@ -165,7 +169,7 @@ class Bert_EncoderMLM(base_model):
         :return: a result of size [B, H*2] or [B, H], according to different 
                 strategy
         """
-        prefix_hidden_states = self.prefix_encoder(torch.tensor([0]*inputs.shape[0]))
+        prefix_hidden_states = self.prefix_encoder(torch.tensor([0]*inputs.shape[0]).to(self.config.device))
         batch_size = inputs.shape[0]
 
         inputs_embeds = self.encoder.bert.embeddings(inputs)
@@ -175,11 +179,11 @@ class Bert_EncoderMLM(base_model):
         hidden_states = inputs_embeds
         for idx, layer in enumerate(self.encoder.bert.encoder.layer):
             hidden_states = torch.cat([prefix_hidden_states[:, idx , : , :].to(self.config.device) , hidden_states], dim = 1)
-            hidden_states = layer(hidden_states)[0][:, 2:, : ]
+            hidden_states = layer(hidden_states)[0][:, self.config.prefix_tuning_num_prompts:, : ]
         
         logits = self.encoder.cls(hidden_states)
         return {
-            'hidden_states' : (hidden_states),
+            'hidden_states' : hidden_states,
             'logits' : logits
         }
 
@@ -197,8 +201,8 @@ class Bert_EncoderMLM(base_model):
             #  the representation of[CLS] mark.
             # outputs = self.encoder(inputs,output_hidden_states=True)
             outputs = self.prefix_encode(inputs)
-            output = outputs.hidden_states[-1][0] # last hidden state of the [CLS] token
-            lm_head_output = outputs.logits
+            output = outputs['hidden_states'][0] # last hidden state of the [CLS] token
+            lm_head_output = outputs['logits']
             
         elif self.pattern == 'entity_marker':
             e11 = []
@@ -215,8 +219,8 @@ class Bert_EncoderMLM(base_model):
             # input the sample to BERT
             # outputs = self.encoder(inputs,output_hidden_states=True) 
             outputs = self.prefix_encode(inputs)
-            last_hidden_states = outputs.hidden_states[-1] # [B,N,H]
-            lm_head_output = outputs.logits
+            last_hidden_states = outputs['hidden_states'] # [B,N,H]
+            lm_head_output = outputs['logits']
             output = []
 
             # for each sample in the batch, acquire its representations for [E11] and [E21]
@@ -249,8 +253,8 @@ class Bert_EncoderMLM(base_model):
             # input the sample to BERT
             # outputs = self.encoder(inputs,output_hidden_states=True) 
             outputs = self.prefix_encode(inputs)
-            last_hidden_states = outputs.hidden_states[-1] # [B,N,H]
-            lm_head_output = outputs.logits
+            last_hidden_states = outputs['hidden_states'] # [B,N,H]
+            lm_head_output = outputs['logits']
             output = []
 
             # for each sample in the batch, acquire its representations for [E11] and [E21]
