@@ -81,7 +81,7 @@ class Bert_EncoderMLM(base_model):
 
     def __init__(self, config):
         super(Bert_EncoderMLM, self).__init__()
-
+        self.config = config
         # load model
         self.encoder = BertModel.from_pretrained(config.bert_path).to(config.device)
         self.lm_head = BertForMaskedLM.from_pretrained(config.bert_path).to(config.device).cls
@@ -145,10 +145,10 @@ class Bert_EncoderMLM(base_model):
                     print('No mask token found in the input sequence')
                     mask = 0
                 mask_pos.append(mask)
-            mask_hidden = output[torch.arange(batch_size), torch.tensor(mask_pos).cuda()]
+            mask_hidden = output[torch.arange(batch_size), torch.tensor(mask_pos).to(self.config.device)]
 
             lmhead_output = self.lm_head(mask_hidden)
-            return output,lmhead_output
+            return mask_hidden,lmhead_output
         else:
             raise NotImplementedError('Only mask pattern is implemented')
     

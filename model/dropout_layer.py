@@ -85,7 +85,7 @@ class Dropout_Layer(base_model):
     def __init__(self, config):
         super(Dropout_Layer, self).__init__()
         self.drop = nn.Dropout(config.drop_out)
-        self.linear_transform = nn.Linear(config.hidden_size * 2, config.output_size, bias=True)
+        self.linear_transform = nn.Linear(config.hidden_size , config.output_size, bias=True)
         self.layer_normalization = nn.LayerNorm([config.output_size])
 
     def forward(self, input):
