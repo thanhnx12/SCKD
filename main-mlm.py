@@ -212,22 +212,24 @@ def train_mem_model(config, encoder, dropout_layer, classifier, training_data, e
             #compute infoNCE loss
             infoNCE_loss = 0
             for i in range(output.shape[0]):
-                neg_prototypes = [prototype[rel_id] for rel_id in prototype.keys() if rel_id != origin_labels[i].item()]
-                neg_prototypes = torch.stack(neg_prototypes).to(config.device)
-                #---- generate negative samples from t-distribution
-                
-                #--- prepare batch of negative samples 
-                neg_prototypes.requires_grad_ = False
-                neg_prototypes = neg_prototypes.squeeze()
-                f_pos = encoder.infoNCE_f(mask_output[i],outputs[i])
-                f_neg = encoder.infoNCE_f(mask_output[i],neg_prototypes )
-                f_concat = torch.cat([f_pos,f_neg.squeeze()],dim=0)
-                f_concat = torch.log(torch.max(f_concat , torch.tensor(1e-8).to(config.device)))
+                #--- prepare batch of positive samples
+                negatives_sample_indexs = torch.where(origin_labels != origin_labels[i])[0]
+
+                pos_hidden = outputs[i].unsqueeze(0)
+                negatives_hidden = outputs[negatives_sample_indexs]
+
+                pos_lmhead_output = mask_output[i].unsqueeze(0)
+
+                f_pos = encoder.infoNCE_f(pos_lmhead_output, pos_hidden)
+                f_neg = encoder.infoNCE_f(pos_lmhead_output, negatives_hidden)
+
+                f_concat = torch.cat([f_pos, f_neg], dim=1).squeeze()
+                f_concat = torch.log(torch.max(f_concat , torch.tensor(1e-9).to(config.device)))
                 try:
-                    infoNCE_loss += -torch.log(softmax(f_concat[0]))
+                    infoNCE_loss += -torch.log(softmax(f_concat)[0] )
                 except:
                     None
-                
+
                 #--- prepare batch of negative samples  
             infoNCE_loss /= output.shape[0]           
             # compute MLM loss
@@ -697,12 +699,12 @@ if __name__ == '__main__':
             for relation in current_relations:
                 new_relation_data[rel2id[relation]].extend(generate_current_relation_data(config, encoder,dropout_layer,training_data[relation]))
 
-            expanded_train_data_for_initial, expanded_prev_samples = data_augmentation(config, encoder,
-                                                                                       train_data_for_initial,
-                                                                                       prev_samples)
-            torch.cuda.empty_cache()
-            print(len(train_data_for_initial))
-            print(len(expanded_train_data_for_initial))
+            # expanded_train_data_for_initial, expanded_prev_samples = data_augmentation(config, encoder,
+            #                                                                            train_data_for_initial,
+            #                                                                            prev_samples)
+            # torch.cuda.empty_cache()
+            # print(len(train_data_for_initial))
+            # print(len(expanded_train_data_for_initial))
 
 
             train_mem_model(config, encoder, dropout_layer, classifier, train_data_for_initial, config.step2_epochs, map_relid2tempid, new_relation_data,
