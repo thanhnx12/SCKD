@@ -18,6 +18,7 @@ import os
 from typing import List
 import wandb
 import utils
+import sys
 
 
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
@@ -183,8 +184,6 @@ def train_mem_model(config, encoder, dropout_layer, classifier, training_data, e
             tokens = torch.stack([x.to(config.device) for x in tokens], dim=0)
             labels = labels.to(config.device)
             origin_labels = labels[:]
-            mlm_labels = labels[:]
-            mlm_labels = mlm_labels + config.vocab_size + config.marker_size # token [REL{i}]
             
             labels = [map_relid2tempid[x.item()] for x in labels]
             labels = torch.tensor(labels).to(config.device)
@@ -216,18 +215,6 @@ def train_mem_model(config, encoder, dropout_layer, classifier, training_data, e
                 neg_prototypes = [prototype[rel_id] for rel_id in prototype.keys() if rel_id != origin_labels[i].item()]
                 neg_prototypes = torch.stack(neg_prototypes).to(config.device)
                 #---- generate negative samples from t-distribution
-                # neg_distributions = [t_distributions[rel_id] for rel_id in t_distributions.keys() if rel_id != origin_labels[i].item()]
-                # neg_samples = []
-                # for t_distribution in neg_distributions:
-                #     t_distribution.sample((3,))
-                #     neg_samples.append(t_distribution.sample((3,))) # sample 3 negative samples from each t-distribution
-
-                # neg_samples = torch.cat(neg_samples).to(config.device)
-                # neg_prototypes.requires_grad_ = False
-                # neg_prototypes = neg_prototypes.squeeze()
-                # neg_samples = torch.cat([neg_samples,neg_prototypes])
-                # assert len(neg_samples.shape) == 2 , f"shape of negative samples is {neg_samples.shape} (expected n_sample x n_feature)"
-                #---- generate negative samples from t-distribution
                 
                 #--- prepare batch of negative samples 
                 neg_prototypes.requires_grad_ = False
@@ -235,16 +222,20 @@ def train_mem_model(config, encoder, dropout_layer, classifier, training_data, e
                 f_pos = encoder.infoNCE_f(mask_output[i],outputs[i])
                 f_neg = encoder.infoNCE_f(mask_output[i],neg_prototypes )
                 f_concat = torch.cat([f_pos,f_neg.squeeze()],dim=0)
-                infoNCE_loss += -torch.log(softmax(f_concat/abs(f_concat).max())[0])
+                f_concat = torch.log(torch.max(f_concat , torch.tensor(1e-8).to(config.device)))
+                try:
+                    infoNCE_loss += -torch.log(softmax(f_concat[0]))
+                except:
+                    None
+                
                 #--- prepare batch of negative samples  
             infoNCE_loss /= output.shape[0]           
             # compute MLM loss
             
-            mlm_loss = criterion(mask_output.view(-1, mask_output.size()[-1]), mlm_labels.view(-1))
             
             
-            loss = loss1 + loss2 + tri_loss + config.infonce_lossfactor*infoNCE_loss + config.mlm_lossfactor*mlm_loss
-            wandb.log({"loss1": loss1, "loss2": loss2, "tri_loss": tri_loss, "infoNCE_loss": infoNCE_loss , "mlm_loss": mlm_loss})
+            loss = loss1 + loss2 + tri_loss + config.infonce_lossfactor*infoNCE_loss 
+            wandb.log({"loss1": loss1, "loss2": loss2, "tri_loss": tri_loss, "infoNCE_loss": infoNCE_loss })
             
             if prev_encoder is not None:
                 prev_reps,_ = prev_encoder(tokens)
@@ -309,6 +300,48 @@ def batch2device(batch_tuple, device):
             ans.append(var)
     return ans
 
+def _edist( x1, x2):
+        '''
+        input: x1 (B, H), x2 (N, H) ; N is the number of relations
+        return: (B, N)
+        '''
+        b = x1.size()[0]
+        L2dist = nn.PairwiseDistance(p=2)
+        dist = [] # B
+        for i in range(b):
+            dist_i = L2dist(x2, x1[i])
+            dist.append(torch.unsqueeze(dist_i, 0)) # (N) --> (1,N)
+        dist = torch.cat(dist, 0) # (B, N)
+        return dist
+def eval_encoder_proto(config,encoder, seen_proto, seen_relid, test_data):
+        batch_size = 16
+        test_loader = get_data_loader(config, test_data, batch_size)
+        
+        corrects = 0.0
+        total = 0.0
+        encoder.eval()
+        for batch_num, (instance, label, _) in enumerate(test_loader):
+            for k in instance.keys():
+                instance[k] = instance[k].to(config.device)
+            hidden,lmhead_output = encoder(instance)
+            fea = hidden.cpu().data # place in cpu to eval
+            logits = _edist(fea, seen_proto) # (B, N) ;N is the number of seen relations
+
+            cur_index = torch.argmax(logits, dim=1) # (B)
+            pred =  []
+            for i in range(cur_index.size()[0]):
+                pred.append(seen_relid[int(cur_index[i])])
+            pred = torch.tensor(pred)
+
+            correct = torch.eq(pred, label).sum().item()
+            acc = correct / batch_size
+            corrects += correct
+            total += batch_size
+            sys.stdout.write('[EVAL] batch: {0:4} | acc: {1:3.2f}%,  total acc: {2:3.2f}%   '\
+                .format(batch_num, 100 * acc, 100 * (corrects / total)) + '\r')
+            sys.stdout.flush()        
+        print('')
+        return corrects / total
 
 def evaluate_strict_model(config, encoder, dropout_layer, classifier, test_data, seen_relations, map_relid2tempid):
     data_loader = get_data_loader(config, test_data, batch_size=1)

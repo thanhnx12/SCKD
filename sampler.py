@@ -10,10 +10,14 @@ class data_sampler(object):
 
         self.config = config
         self.id2rel, self.rel2id = self._read_relations(config.relation_file)
-        additional_special_tokens = ["[E11]", "[E12]", "[E21]", "[E22]"]
-        if config.pattern == 'entity_marker_mask':
-            additional_special_tokens.extend([f"[REL{i}]" for i in range(1, len(self.id2rel) + 1)])
-        self.tokenizer = BertTokenizer.from_pretrained(self.config.bert_path, additional_special_tokens=additional_special_tokens)
+        if config.pattern ==  'entity_marker':
+            additional_special_tokens = ["[E11]", "[E12]", "[E21]", "[E22]"]
+            self.tokenizer = BertTokenizer.from_pretrained(self.config.bert_path, additional_special_tokens=additional_special_tokens)
+        else:
+            self.tokenizer = BertTokenizer.from_pretrained(self.config.bert_path)
+
+        # if config.pattern == 'entity_marker_mask':
+        #     additional_special_tokens.extend([f"[REL{i}]" for i in range(1, len(self.id2rel) + 1)])
 
         self.id2sent = {}
         self.training_data = self.load_data(config.training_file)
@@ -69,8 +73,12 @@ class data_sampler(object):
         for sample in samples:
             text = sample[2]
             split_text = text.split(" ")
-            new_headent = ' [E11] ' + sample[3] + ' [E12] '
-            new_tailent = ' [E21] ' + sample[5] + ' [E22] '
+            if self.config.pattern == 'entity_marker':
+                new_headent = ' [E11] ' + sample[3] + ' [E12] '
+                new_tailent = ' [E21] ' + sample[5] + ' [E22] '
+            else:
+                new_headent = sample[3]
+                new_tailent = sample[5]
             if sample[4][0] < sample[6][0]:
                 new_text = " ".join(split_text[0:sample[4][0]]) + new_headent + " ".join(
                     split_text[sample[4][-1] + 1:sample[6][0]]) \
@@ -80,9 +88,9 @@ class data_sampler(object):
                     split_text[sample[6][-1] + 1:sample[4][0]]) \
                            + new_headent + " ".join(split_text[sample[4][-1] + 1:len(split_text)])
         
-            if self.config.pattern == 'entity_marker_mask': 
+            if self.config.pattern == 'mask': 
                 # add 'head [MASK] tail' to the sentence
-                tmp = sample[3] + ' [MASK] ' + sample[5] + ' [SEP] '
+                tmp = sample[3] + ' [MASK] ' + sample[5] + ' . '
                 new_text = tmp + new_text 
                 
             tokenized_sample = {}
